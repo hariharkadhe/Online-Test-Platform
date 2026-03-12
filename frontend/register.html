@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - Online Exam System</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <div class="auth-container">
+        <h2>Create Account</h2>
+        <div id="alertBox" class="alert hidden"></div>
+        <form id="registerForm">
+            <div class="form-group">
+                <label for="name">Full Name</label>
+                <input type="text" id="name" required autocomplete="name">
+            </div>
+            <div class="form-group">
+                <label for="email">Email Address</label>
+                <input type="email" id="email" required autocomplete="email">
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" required autocomplete="new-password">
+            </div>
+            <div class="form-group">
+                <label for="role">Role</label>
+                <select id="role">
+                    <option value="student">Student</option>
+                    <option value="admin">Administrator</option>
+                </select>
+            </div>
+            <button type="submit" class="btn" id="regBtn">Sign Up</button>
+        </form>
+        <div class="link-text">
+            Already have an account? <a href="index.html">Sign In</a>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script>
+        if (localStorage.getItem('token')) {
+            const role = localStorage.getItem('role');
+            window.location.href = role === 'admin' ? 'admin.html' : 'dashboard.html';
+        }
+
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('name').value;
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const role = document.getElementById('role').value;
+
+            const alertBox = document.getElementById('alertBox');
+            const btn = document.getElementById('regBtn');
+
+            btn.textContent = 'Creating account...';
+            btn.disabled = true;
+
+            try {
+                await api.post('/auth/register', { name, email, password, role });
+
+                // Auto-login after registration or just redirect
+                const loginData = await api.post('/auth/login', { email, password });
+                localStorage.setItem('token', loginData.token);
+                localStorage.setItem('role', loginData.role);
+                localStorage.setItem('name', loginData.name);
+
+                window.location.href = loginData.role === 'admin' ? 'admin.html' : 'dashboard.html';
+            } catch (err) {
+                alertBox.textContent = err.message;
+                alertBox.className = 'alert error';
+                alertBox.style.display = 'block';
+            } finally {
+                btn.textContent = 'Sign Up';
+                btn.disabled = false;
+            }
+        });
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exam Results - OES</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .result-circle {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            border: 10px solid var(--primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin: 0 auto 30px auto;
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.4);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="auth-container" style="max-width: 500px; text-align: center;">
+        <h2>Exam Completed!</h2>
+        <p class="text-muted" style="margin-bottom: 30px;">Your exam has been submitted successfully.</p>
+
+        <div class="result-circle" id="scoreDisplay">
+            -- / --
+        </div>
+
+        <div style="font-size: 1.2rem; margin-bottom: 30px;" id="messageDisplay"></div>
+
+        <button class="btn" onclick="window.location.href='dashboard.html'">Return to Dashboard</button>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script>
+        if (!localStorage.getItem('token')) {
+            window.location.href = 'index.html';
+        }
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const score = urlParams.get('score');
+        const total = urlParams.get('total');
+
+        if (score !== null && total !== null) {
+            document.getElementById('scoreDisplay').textContent = `${score} / ${total}`;
+
+            const percentage = (score / total) * 100;
+            const msgEl = document.getElementById('messageDisplay');
+
+            if (percentage >= 80) {
+                msgEl.textContent = "Excellent work!";
+                msgEl.style.color = 'var(--success)';
+                document.getElementById('scoreDisplay').style.borderColor = 'var(--success)';
+            } else if (percentage >= 50) {
+                msgEl.textContent = "Good job! You passed.";
+            } else {
+                msgEl.textContent = "Keep practicing!";
+                msgEl.style.color = 'var(--error)';
+                document.getElementById('scoreDisplay').style.borderColor = 'var(--error)';
+            }
+        } else {
+            document.getElementById('scoreDisplay').textContent = "N/A";
+            document.getElementById('messageDisplay').textContent = "Result data missing.";
+        }
+    </script>
+</body>
+
+</html>

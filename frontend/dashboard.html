@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Dashboard - OES</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <header class="app-header">
+        <div class="logo">OES Dashboard</div>
+        <nav class="flex-row">
+            <span>Welcome, <span id="userName">Student</span></span>
+            <button onclick="logout()">Logout</button>
+        </nav>
+    </header>
+
+    <div class="app-wrapper flex-col">
+        <div class="card">
+            <h2 class="card-title">Available Exams</h2>
+            <div id="examsList" class="flex-col">Loading exams...</div>
+        </div>
+
+        <div class="card">
+            <h2 class="card-title">My Result History</h2>
+            <div id="resultsList" class="flex-col">Loading results...</div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script>
+        if (!localStorage.getItem('token') || localStorage.getItem('role') !== 'student') {
+            window.location.href = 'index.html';
+        }
+        document.getElementById('userName').textContent = localStorage.getItem('name');
+
+        function logout() {
+            localStorage.clear();
+            window.location.href = 'index.html';
+        }
+
+        async function loadDashboard() {
+            try {
+                const [exams, results] = await Promise.all([
+                    api.get('/exams'),
+                    api.get('/results/my-results')
+                ]);
+
+                const examsContainer = document.getElementById('examsList');
+                const resultsContainer = document.getElementById('resultsList');
+
+                // Render Results
+                if (results.length === 0) {
+                    resultsContainer.innerHTML = '<p class="text-muted">No exams taken yet.</p>';
+                } else {
+                    resultsContainer.innerHTML = results.map(r => `
+            <div style="background: rgba(255,255,255,0.05); padding: 16px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <strong>${r.examId.title}</strong>
+                <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">Date: ${new Date(r.createdAt).toLocaleDateString()}</div>
+              </div>
+              <div style="font-weight: bold; background: rgba(34,197,94,0.2); color: #86efac; padding: 6px 12px; border-radius: 20px;">
+                Score: ${r.score}
+              </div>
+            </div>
+          `).join('');
+                }
+
+                // Render Exams (Filter out attempted ones)
+                const attemptedExamIds = new Set(results.map(r => r.examId._id));
+                const availableExams = exams.filter(ex => !attemptedExamIds.has(ex._id));
+
+                if (availableExams.length === 0) {
+                    examsContainer.innerHTML = '<p class="text-muted">No new exams available at the moment.</p>';
+                } else {
+                    examsContainer.innerHTML = availableExams.map(ex => `
+            <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; border: 1px solid var(--glass-border); display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <h3 style="margin-bottom: 4px;">${ex.title}</h3>
+                <span style="font-size: 0.9rem; color: var(--text-muted);">${ex.duration} minutes</span>
+              </div>
+              <button class="btn" style="width: auto; padding: 8px 24px;" onclick="startExam('${ex._id}', '${ex.duration}')">Start</button>
+            </div>
+          `).join('');
+                }
+
+            } catch (err) {
+                document.getElementById('examsList').innerHTML = `<p class="alert error" style="display:block">Error loading data.</p>`;
+            }
+        }
+
+        function startExam(examId, duration) {
+            if (confirm('Are you sure you want to start this exam? Once started, the timer will begin and you cannot pause.')) {
+                window.location.href = `exam.html?id=${examId}&duration=${duration}`;
+            }
+        }
+
+        loadDashboard();
+    </script>
+</body>
+
+</html>

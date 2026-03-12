@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - OES</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <header class="app-header">
+        <div class="logo">OES Admin</div>
+        <nav class="flex-row">
+            <span>Welcome, <span id="userName">Admin</span></span>
+            <button onclick="logout()">Logout</button>
+        </nav>
+    </header>
+
+    <div class="app-wrapper flex-col">
+        <!-- Create Exam Form -->
+        <div class="card">
+            <h2 class="card-title">Create New Exam</h2>
+            <div id="examAlert" class="alert hidden"></div>
+            <form id="createExamForm" class="flex-row">
+                <div class="form-group" style="flex: 2; margin-bottom: 0;">
+                    <input type="text" id="examTitle" placeholder="Exam Title (e.g., Node.js Basics)" required>
+                </div>
+                <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                    <input type="number" id="examDuration" placeholder="Duration (mins)" min="1" required>
+                </div>
+                <button type="submit" class="btn" style="flex: 1; margin-top: 0;">Create</button>
+            </form>
+        </div>
+
+        <!-- Manage Existing Exams / Add Questions -->
+        <div class="card">
+            <h2 class="card-title">Manage Exams</h2>
+            <div id="examsList" class="flex-col"></div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script>
+        if (!localStorage.getItem('token') || localStorage.getItem('role') !== 'admin') {
+            window.location.href = 'index.html';
+        }
+        document.getElementById('userName').textContent = localStorage.getItem('name');
+
+        function logout() {
+            localStorage.clear();
+            window.location.href = 'index.html';
+        }
+
+        // Load available exams to add questions to
+        async function loadExams() {
+            const container = document.getElementById('examsList');
+            container.innerHTML = 'Loading exams...';
+            try {
+                const exams = await api.get('/exams');
+                if (exams.length === 0) {
+                    container.innerHTML = '<p class="text-muted">No exams created yet.</p>';
+                    return;
+                }
+
+                container.innerHTML = exams.map(ex => `
+          <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; border: 1px solid var(--glass-border);">
+            <div class="flex-row space-between" style="margin-bottom: 12px;">
+              <h3>${ex.title} <span style="font-size: 0.9rem; font-weight: 400; color: var(--text-muted);">(${ex.duration} mins)</span></h3>
+              <button class="btn btn-outline" style="width: auto; padding: 6px 12px; font-size: 0.9rem;" onclick="toggleAddQuestion('${ex._id}')">Add Question</button>
+            </div>
+            
+            <form id="addQ-${ex._id}" class="hidden flex-col" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--glass-border);" onsubmit="addQuestion(event, '${ex._id}')">
+              <input type="text" id="q_text_${ex._id}" placeholder="Question text" required class="form-control" style="width: 100%; padding: 10px; border-radius: 8px; background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); color: white;">
+              
+              <div class="flex-row" style="flex-wrap: wrap;">
+                <input type="text" id="q_optA_${ex._id}" placeholder="Option A" required style="flex: 1; min-width: 45%; padding: 10px; border-radius: 8px; background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); color: white;">
+                <input type="text" id="q_optB_${ex._id}" placeholder="Option B" required style="flex: 1; min-width: 45%; padding: 10px; border-radius: 8px; background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); color: white;">
+                <input type="text" id="q_optC_${ex._id}" placeholder="Option C" required style="flex: 1; min-width: 45%; padding: 10px; border-radius: 8px; background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); color: white;">
+                <input type="text" id="q_optD_${ex._id}" placeholder="Option D" required style="flex: 1; min-width: 45%; padding: 10px; border-radius: 8px; background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); color: white;">
+              </div>
+              
+              <select id="q_correct_${ex._id}" required style="width: 100%; padding: 10px; border-radius: 8px; background: rgba(0,0,0,0.5); border: 1px solid var(--glass-border); color: white;">
+                <option value="">Select Correct Option...</option>
+                <option value="A">Option A</option>
+                <option value="B">Option B</option>
+                <option value="C">Option C</option>
+                <option value="D">Option D</option>
+              </select>
+              <button type="submit" class="btn">Save Question</button>
+            </form>
+          </div>
+        `).join('');
+            } catch (err) {
+                container.innerHTML = `<p class="alert error" style="display:block">Error loading exams.</p>`;
+            }
+        }
+
+        document.getElementById('createExamForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const title = document.getElementById('examTitle').value;
+            const duration = document.getElementById('examDuration').value;
+            const alertBox = document.getElementById('examAlert');
+
+            try {
+                await api.post('/exams', { title, duration: Number(duration) });
+                alertBox.textContent = 'Exam created successfully!';
+                alertBox.className = 'alert success';
+                alertBox.style.display = 'block';
+                document.getElementById('createExamForm').reset();
+                loadExams(); // Refresh list
+            } catch (err) {
+                alertBox.textContent = err.message;
+                alertBox.className = 'alert error';
+                alertBox.style.display = 'block';
+            }
+        });
+
+        function toggleAddQuestion(examId) {
+            const form = document.getElementById(`addQ-${examId}`);
+            form.classList.toggle('hidden');
+        }
+
+        async function addQuestion(e, examId) {
+            e.preventDefault();
+
+            const question = document.getElementById(`q_text_${examId}`).value;
+            const optA = document.getElementById(`q_optA_${examId}`).value;
+            const optB = document.getElementById(`q_optB_${examId}`).value;
+            const optC = document.getElementById(`q_optC_${examId}`).value;
+            const optD = document.getElementById(`q_optD_${examId}`).value;
+            const correctSelect = document.getElementById(`q_correct_${examId}`).value;
+
+            const optsMap = { 'A': optA, 'B': optB, 'C': optC, 'D': optD };
+            const correctAnswer = optsMap[correctSelect];
+            const options = [optA, optB, optC, optD];
+
+            try {
+                await api.post('/questions', { examId, question, options, correctAnswer });
+                alert('Question added successfully!');
+                document.getElementById(`addQ-${examId}`).reset();
+                toggleAddQuestion(examId); // Hide form
+            } catch (err) {
+                alert('Failed to add question: ' + err.message);
+            }
+        }
+
+        // Initial load
+        loadExams();
+    </script>
+</body>
+
+</html>

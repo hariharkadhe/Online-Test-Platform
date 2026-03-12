@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Taking Exam - OES</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        /* Prevent selection and context menu */
+        body {
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+
+        .timer {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #fca5a5;
+            background: rgba(239, 68, 68, 0.2);
+            padding: 8px 16px;
+            border-radius: 8px;
+        }
+
+        .question-nav {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .nav-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 1px solid var(--glass-border);
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            cursor: pointer;
+        }
+
+        .nav-btn.answered {
+            background: var(--primary);
+            border-color: var(--primary);
+        }
+
+        .nav-btn.active {
+            border: 2px solid white;
+        }
+
+        .option-label {
+            display: block;
+            padding: 16px;
+            margin-bottom: 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--glass-border);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .option-label:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .option-label input {
+            margin-right: 12px;
+        }
+    </style>
+</head>
+
+<body oncontextmenu="return false;">
+
+    <div class="app-header">
+        <div class="logo">OES Exam Module</div>
+        <div class="timer" id="timer">Loading...</div>
+    </div>
+
+    <div class="app-wrapper flex-col">
+        <div id="examContainer" class="card hidden" style="min-height: 400px; display: flex; flex-direction: column;">
+            <div id="questionText" class="card-title" style="font-size: 1.2rem; margin-bottom: 24px;"></div>
+
+            <div id="optionsContainer" style="flex: 1;">
+                <!-- Options injected here -->
+            </div>
+
+            <div class="flex-row space-between"
+                style="border-top: 1px solid var(--glass-border); padding-top: 20px; margin-top: 20px;">
+                <button class="btn btn-outline" style="width: 120px;" id="prevBtn"
+                    onclick="changeQuestion(-1)">Previous</button>
+                <button class="btn btn-outline" style="width: 120px;" id="nextBtn"
+                    onclick="changeQuestion(1)">Next</button>
+            </div>
+        </div>
+
+        <!-- Question Navigation Palette -->
+        <div class="card">
+            <div style="margin-bottom: 12px; font-weight: bold;">Question Navigator</div>
+            <div id="questionNav" class="question-nav"></div>
+
+            <button class="btn" style="margin-top: 24px; background: var(--success);" onclick="submitExam()">Submit
+                Exam</button>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script>
+        if (!localStorage.getItem('token') || localStorage.getItem('role') !== 'student') {
+            window.location.href = 'index.html';
+        }
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const examId = urlParams.get('id');
+        const durationMinutes = parseInt(urlParams.get('duration'));
+
+        if (!examId || isNaN(durationMinutes)) {
+            alert("Invalid exam. Returning to dashboard.");
+            window.location.href = 'dashboard.html';
+        }
+
+        let questions = [];
+        let currentQuestionIndex = 0;
+        let userAnswers = {}; // Format: { questionId: selectedOptionText }
+        let timeRemaining = durationMinutes * 60; // seconds
+        let timerInterval;
+
+        // Security: Prevent Copy Paste
+        document.addEventListener('copy', (e) => e.preventDefault());
+        document.addEventListener('paste', (e) => e.preventDefault());
+
+        // Security: Warn on refresh/leave
+        window.addEventListener('beforeunload', function (e) {
+            e.preventDefault();
+            e.returnValue = '';
+        });
+
+        async function initExam() {
+            try {
+                // Check if already attempted
+                const check = await api.get(`/results/check/${examId}`);
+                if (check.attempted) {
+                    alert('You have already attempted this exam. Redirecting to dashboard.');
+                    window.location.href = 'dashboard.html';
+                    return;
+                }
+
+                // Fetch questions
+                questions = await api.get(`/questions/exam/${examId}`);
+
+                if (questions.length === 0) {
+                    alert("This exam has no questions. Redirecting to dashboard.");
+                    window.location.href = 'dashboard.html';
+                    return;
+                }
+
+                document.getElementById('examContainer').classList.remove('hidden');
+                renderQuestionNav();
+                renderCurrentQuestion();
+                startTimer();
+
+            } catch (err) {
+                alert("Error loading exam: " + err.message);
+                window.location.href = 'dashboard.html';
+            }
+        }
+
+        function startTimer() {
+            const timerEl = document.getElementById('timer');
+            timerInterval = setInterval(() => {
+                timeRemaining--;
+                if (timeRemaining <= 0) {
+                    clearInterval(timerInterval);
+                    timerEl.textContent = "00:00";
+                    alert("Time is up! Submitting exam automatically.");
+                    autoSubmit();
+                } else {
+                    const mins = Math.floor(timeRemaining / 60).toString().padStart(2, '0');
+                    const secs = (timeRemaining % 60).toString().padStart(2, '0');
+                    timerEl.textContent = `${mins}:${secs}`;
+                }
+            }, 1000);
+        }
+
+        function renderQuestionNav() {
+            const navContainer = document.getElementById('questionNav');
+            navContainer.innerHTML = questions.map((q, idx) => `
+        <button class="nav-btn ${userAnswers[q._id] ? 'answered' : ''} ${idx === currentQuestionIndex ? 'active' : ''}" 
+                onclick="goToQuestion(${idx})" id="navBtn-${idx}">
+          ${idx + 1}
+        </button>
+      `).join('');
+        }
+
+        function updateNavBtnState() {
+            // Update active state class manually for speed
+            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+            const activeBtn = document.getElementById(`navBtn-${currentQuestionIndex}`);
+            if (activeBtn) activeBtn.classList.add('active');
+        }
+
+        function renderCurrentQuestion() {
+            const q = questions[currentQuestionIndex];
+            document.getElementById('questionText').textContent = `Q${currentQuestionIndex + 1}. ${q.question}`;
+
+            const optsContainer = document.getElementById('optionsContainer');
+            optsContainer.innerHTML = q.options.map((opt, i) => {
+                const isChecked = userAnswers[q._id] === opt;
+                return `
+          <label class="option-label">
+            <input type="radio" name="optionsGroup" value="${opt}" ${isChecked ? 'checked' : ''} onchange="selectOption('${q._id}', this.value)">
+            ${opt}
+          </label>
+        `;
+            }).join('');
+
+            document.getElementById('prevBtn').disabled = currentQuestionIndex === 0;
+            document.getElementById('nextBtn').disabled = currentQuestionIndex === questions.length - 1;
+
+            updateNavBtnState();
+        }
+
+        function selectOption(qId, val) {
+            userAnswers[qId] = val;
+            const navBtn = document.getElementById(`navBtn-${currentQuestionIndex}`);
+            if (navBtn) navBtn.classList.add('answered');
+        }
+
+        function changeQuestion(direction) {
+            const newIdx = currentQuestionIndex + direction;
+            if (newIdx >= 0 && newIdx < questions.length) {
+                currentQuestionIndex = newIdx;
+                renderCurrentQuestion();
+            }
+        }
+
+        function goToQuestion(idx) {
+            currentQuestionIndex = idx;
+            renderCurrentQuestion();
+        }
+
+        async function submitExam() {
+            const unansweredCount = questions.length - Object.keys(userAnswers).length;
+            if (unansweredCount > 0) {
+                if (!confirm(`You have ${unansweredCount} unanswered questions. Are you sure you want to submit?`)) return;
+            } else {
+                if (!confirm('Are you sure you want to submit the exam?')) return;
+            }
+            await autoSubmit();
+        }
+
+        async function autoSubmit() {
+            clearInterval(timerInterval);
+
+            // Remove beforeunload listener so we can redirect without warning
+            window.onbeforeunload = null;
+
+            try {
+                const result = await api.post('/results/submit', { examId, answers: userAnswers });
+                window.location.href = `result.html?score=${result.score}&total=${questions.length}`;
+            } catch (err) {
+                alert("Failed to submit exam: " + err.message);
+            }
+        }
+
+        // Start
+        initExam();
+    </script>
+</body>
+
+</html>

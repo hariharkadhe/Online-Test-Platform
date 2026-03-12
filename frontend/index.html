@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - Online Exam System</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="auth-container">
+    <h2>Welcome Back</h2>
+    <div id="alertBox" class="alert hidden"></div>
+    <form id="loginForm">
+      <div class="form-group">
+        <label for="email">Email Address</label>
+        <input type="email" id="email" required autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" required autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn" id="loginBtn">Sign In</button>
+    </form>
+    <div class="link-text">
+      Don't have an account? <a href="register.html">Sign Up</a>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script>
+    if (localStorage.getItem('token')) {
+      const role = localStorage.getItem('role');
+      window.location.href = role === 'admin' ? 'admin.html' : 'dashboard.html';
+    }
+
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const alertBox = document.getElementById('alertBox');
+      const btn = document.getElementById('loginBtn');
+
+      btn.textContent = 'Signing in...';
+      btn.disabled = true;
+
+      try {
+        const data = await api.post('/auth/login', { email, password });
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('role', data.role);
+        localStorage.setItem('name', data.name);
+        
+        window.location.href = data.role === 'admin' ? 'admin.html' : 'dashboard.html';
+      } catch (err) {
+        alertBox.textContent = err.message;
+        alertBox.className = 'alert error';
+        alertBox.style.display = 'block';
+      } finally {
+        btn.textContent = 'Sign In';
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
