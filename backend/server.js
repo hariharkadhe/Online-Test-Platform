@@ -25,7 +25,7 @@ app.use('/api/results', resultRoutes);
 // Static frontend serving
 app.use(express.static(path.join(__dirname, '../frontend')));
 
-app.get('*', (req, res) => {
+app.get('/*', (req, res) => {
     if (!req.path.startsWith('/api')) {
         res.sendFile(path.join(__dirname, '../frontend/index.html'));
     }
