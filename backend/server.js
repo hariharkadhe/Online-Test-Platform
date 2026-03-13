@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const path = require('path');
 
 const authRoutes = require('./routes/authRoutes');
 const examRoutes = require('./routes/examRoutes');
@@ -20,6 +21,15 @@ app.use('/api/auth', authRoutes);
 app.use('/api/exams', examRoutes);
 app.use('/api/questions', questionRoutes);
 app.use('/api/results', resultRoutes);
+
+// Static frontend serving
+app.use(express.static(path.join(__dirname, '../frontend')));
+
+app.get('*', (req, res) => {
+    if (!req.path.startsWith('/api')) {
+        res.sendFile(path.join(__dirname, '../frontend/index.html'));
+    }
+});
 
 // Database Connection
 const { MongoMemoryServer } = require('mongodb-memory-server');
